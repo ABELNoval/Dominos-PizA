@@ -16,7 +16,6 @@ license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
-    README.md
     CHANGELOG.md
 
 source-repository head
@@ -35,6 +34,8 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , random
+    , random-shuffle
   default-language: Haskell2010
 
 executable domino-exe
@@ -49,6 +50,8 @@ executable domino-exe
   build-depends:
       base >=4.7 && <5
     , domino
+    , random
+    , random-shuffle
   default-language: Haskell2010
 
 test-suite domino-test
@@ -64,4 +67,6 @@ test-suite domino-test
   build-depends:
       base >=4.7 && <5
     , domino
+    , random
+    , random-shuffle
   default-language: Haskell2010
