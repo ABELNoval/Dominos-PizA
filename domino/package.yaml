@@ -22,6 +22,7 @@ dependencies:
 - base >= 4.7 && < 5
 - random-shuffle
 - random
+- gloss
 
 ghc-options:
 - -Wall
