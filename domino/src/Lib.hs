@@ -33,8 +33,7 @@ generarFichas =
 -- | Baraja una lista de fichas de forma aleatoria.
 barajarFichas :: [Ficha] -> IO [Ficha]
 barajarFichas fichas = do
-    gen <- newStdGen
-    pure $ shuffle' fichas (length fichas) gen
+    shuffle' fichas (length fichas) <$> newStdGen
 
 -- | Reparte las fichas barajadas entre un número dado de jugadores.
 -- Por ahora, asume un reparto fijo de 10 fichas por jugador.
@@ -43,7 +42,7 @@ repartirManos fichas nJugadores =
     let (manos, resto) = splitAt (nJugadores * 10) fichas
         jugadores =
           zipWith
-            (\jid m -> Jugador jid m)
+            Jugador
             [1..nJugadores]
             (chunksOf 10 manos)
     in (jugadores, resto)

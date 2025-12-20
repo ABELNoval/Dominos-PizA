@@ -24,19 +24,21 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      Player.Player
   other-modules:
+      Player
       Paths_domino
   autogen-modules:
       Paths_domino
   hs-source-dirs:
-      src
+      src/Player
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
     , gloss
     , random
     , random-shuffle
+    , vector
   default-language: Haskell2010
 
 executable domino-exe
@@ -54,6 +56,7 @@ executable domino-exe
     , gloss
     , random
     , random-shuffle
+    , vector
   default-language: Haskell2010
 
 test-suite domino-test
@@ -72,4 +75,5 @@ test-suite domino-test
     , gloss
     , random
     , random-shuffle
+    , vector
   default-language: Haskell2010
