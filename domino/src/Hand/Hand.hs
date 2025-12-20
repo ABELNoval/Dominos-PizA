@@ -1,4 +1,4 @@
-module Hand
+module Hand.Hand
   ( Hand(..)
   ) where
 

@@ -1,4 +1,6 @@
-module Piece() where
+module Piece.Piece
+  ( Piece(..)
+  ) where
 
 data Piece = Piece
   { endA :: Int

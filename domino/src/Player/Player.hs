@@ -1,8 +1,8 @@
-module Player
+module Player.Player
   ( Player(..)
   ) where
 
-import Hand (Hand) 
+import Hand.Hand (Hand)
 
 data Player = Player
   { playerId   :: Int

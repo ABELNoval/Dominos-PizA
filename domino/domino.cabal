@@ -24,14 +24,22 @@ source-repository head
 
 library
   exposed-modules:
+      Lib
+      Hand.Hand
       Player.Player
+      Piece.Piece
+      GameManager.GameManager
   other-modules:
-      Player
+      GameContext.GameContext
+      GameService.GameService
+      SystemState.SystemState
+      Table.Table
+      World.World
       Paths_domino
   autogen-modules:
       Paths_domino
   hs-source-dirs:
-      src/Player
+      src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
