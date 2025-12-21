@@ -6,21 +6,27 @@ cabal-version: 1.12
 
 name:           domino
 version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/domino#readme>
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
+extra-source-files:
+    CHANGELOG.md
 
 library
   exposed-modules:
-      GameUi.UiButton
-      GameUi.UiEvents
-      GameUi.UiRender
-      GameUi.UiState
       Lib
+      Game.Domino
+      Game.Board
+      Game.Player
+      Game.Rules
+      Game.GameState
+      Game.Actions
   other-modules:
       Paths_domino
   hs-source-dirs:
       src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
     , gloss
@@ -37,7 +43,26 @@ executable domino-exe
       Paths_domino
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , domino
+    , gloss
+    , mtl
+    , pretty
+    , random
+    , random-shuffle
+    , vector
+  default-language: Haskell2010
+
+test-suite domino-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_domino
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , domino
