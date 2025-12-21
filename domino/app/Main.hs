@@ -140,7 +140,7 @@ pedirYProcesarAccion gs _ = do
             cliLoop gs
 
 procesarResultado :: GS.GameState -> GA.ResultadoAccion -> IO ()
-procesarResultado _ res = case res of
+procesarResultado gsOriginal res = case res of
     GA.Exito gs' -> cliLoop gs'
     GA.Victoria jugador gs' -> do
         putStrLn $ "\n¡Victoria! " ++ GP.playerName jugador ++ " se quedó sin fichas."
@@ -154,7 +154,7 @@ procesarResultado _ res = case res of
     GA.ErrorAccion msg -> do
         putStrLn $ "Error: " ++ msg
         putStrLn "Intenta otra acción."
-        return () -- simplemente vuelve al loop anterior
+        cliLoop gsOriginal  -- vuelve al loop con el estado sin cambios
 
 mostrarResultadoFinal :: GS.GameState -> IO ()
 mostrarResultadoFinal gs = do
