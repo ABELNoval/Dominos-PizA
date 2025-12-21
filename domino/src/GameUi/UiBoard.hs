@@ -4,6 +4,12 @@ import Graphics.Gloss
 import Game.Board (Board, fichasEnMesa)
 import Game.Domino (Domino(..))
 import Game.Player (Player(..))
+import Game.GameState (GameState, jugadorActual)
+
+data UiTile = UiTile {
+    uiDomino :: Domino,
+    uiPos :: (Float, Float)
+}
 
 -- =========================================================
 -- Constants
@@ -120,3 +126,12 @@ hiddenDomino :: Picture
 hiddenDomino =
     Color (makeColorI 220 190 160 255) $
         rectangleSolid dominoWidth dominoHeight
+
+playerHandTiles :: GameState -> [UiTile]
+playerHandTiles gs =
+  let player = jugadorActual gs
+      hand = playerHand player
+      startX = - ((fromIntegral (length hand) * (dominoWidth + dominoGap)) / 2)
+      stepX = dominoWidth + dominoGap
+      y = 200
+  in zipWith (\i domino -> UiTile domino (startX + fromIntegral i * stepX, y)) [0..] hand

@@ -5,6 +5,7 @@ module GameUi.UiHand
 
 import Graphics.Gloss
 import GameUi.UiDomino
+import Game.Domino (Domino(..))
 
 ------------------------------------------------------------
 -- Constants (layout tuning)
@@ -19,14 +20,14 @@ dominoSpacing = 50
 
 -- | Draws a hand of visible dominoes (player hand)
 -- | Each domino is given as (topValue, bottomValue)
-drawVisibleHand :: [(Int, Int)] -> Picture
+drawVisibleHand :: [Domino] -> Picture
 drawVisibleHand dominoes =
   Pictures $
     zipWith drawOne [0..] dominoes
   where
-    drawOne index (a, b) =
+    drawOne index (Domino a b) =
       translate (handOffset index) 0 $
-        drawDominoVertical a b
+        drawDominoVertical (Domino a b)
 
 -- | Draws a hand of hidden dominoes (opponent hand)
 drawHiddenHand :: Int -> Picture

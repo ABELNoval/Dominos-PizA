@@ -30,6 +30,7 @@ library
   other-modules:
       GameUi.UiDomino
       GameUi.UiHand
+      GameUi.UiSelection
       Paths_domino
   hs-source-dirs:
       src

@@ -5,6 +5,7 @@ module GameUi.UiDomino
   ) where
 
 import Graphics.Gloss
+import Game.Domino (Domino(..))
 
 ------------------------------------------------------------
 -- Constants (visual tuning)
@@ -27,8 +28,8 @@ pipOffset = 10
 ------------------------------------------------------------
 
 -- | Draws a vertical domino with visible values
-drawDominoVertical :: Int -> Int -> Picture
-drawDominoVertical top bottom =
+drawDominoVertical :: Domino -> Picture
+drawDominoVertical (Domino top bottom) =
   Pictures
     [ dominoBase
     , dividerLine

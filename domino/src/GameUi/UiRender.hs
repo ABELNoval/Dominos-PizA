@@ -7,6 +7,7 @@ import GameUi.UiBoard
 import GameUi.UiHand
 import Game.GameState (GameState,gsTablero, gsJugadores, gsTurnoActual)
 import Game.Player (playerHand)
+import GameUi.UiDomino (drawDominoVertical)
 
 
 -- | Main render function for the UI.
@@ -121,6 +122,16 @@ drawGameplay gs =
         , drawHands (gsJugadores gs) (gsTurnoActual gs)
         ]
 
+drawHandTile :: UiSelection -> UiTile -> Picture
+drawHandTile sel (UiTile d (x, y)) =
+    Translate x y $
+        Pictures
+            [ if isSelected then highlight else Blank
+            , drawDominoVertical d
+            ]
+  where
+    isSelected = sel == Selected d
+    highlight  = Color green $ rectangleWire 44 84
 
 -- =========================================================
 -- Temporary mock data (will come from Game later)
