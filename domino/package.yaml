@@ -46,12 +46,8 @@ library:
 
 executables:
   domino-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs: app
     dependencies:
     - domino
     - gloss
