@@ -44,6 +44,12 @@ library:
     - Player.Player
     - Piece.Piece
     - GameManager.GameManager
+    - Game.Domino
+    - Game.Board
+    - Game.Player
+    - Game.Rules
+    - Game.GameState
+    - Game.Actions
 
 executables:
   domino-exe:
