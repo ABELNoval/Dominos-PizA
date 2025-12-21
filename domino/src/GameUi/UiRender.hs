@@ -3,6 +3,11 @@ module GameUi.UiRender where
 import Graphics.Gloss
 import GameUi.UiState
 import GameUi.UiButton
+import GameUi.UiBoard
+import GameUi.UiHand
+import Game.GameState (GameState,gsTablero, gsJugadores, gsTurnoActual)
+import Game.Player (playerHand)
+
 
 -- | Main render function for the UI.
 renderUi :: UiState -> Picture
@@ -17,7 +22,8 @@ renderUi uiState =
         DifficultyMenu -> Pictures [ drawTitle
                                    , drawMenuWithLabels difficultyMenuButtons difficultyLabels
                                    ]
-        Gameplay       -> drawGameplayPlaceholder
+        Gameplay       -> 
+            maybe Blank drawGameplay (gameState uiState)
         Exit           -> Blank
 
 
@@ -105,12 +111,37 @@ difficultyLabels =
 
 
 -- =========================================================
--- Gameplay placeholder
+-- Gameplay screen
 -- =========================================================
 
-drawGameplayPlaceholder :: Picture
-drawGameplayPlaceholder =
-    Translate (-180) 0 $
-        Scale 0.2 0.2 $
-            Color white $
-                Text "Gameplay Screen"
+drawGameplay :: GameState -> Picture
+drawGameplay gs =
+    Pictures
+        [ drawBoard (gsTablero gs)
+        , drawHands (gsJugadores gs) (gsTurnoActual gs)
+        ]
+
+
+-- =========================================================
+-- Temporary mock data (will come from Game later)
+-- =========================================================
+
+-- boardDominoes :: [(Int, Int)]
+-- boardDominoes =
+--     [ (6,6)
+--     , (6,4)
+--     , (4,1)
+--     , (1,3)
+--     ]
+
+-- playerHand :: [(Int, Int)]
+-- playerHand =
+--     [ (0,1)
+--     , (2,5)
+--     , (3,3)
+--     , (6,2)
+--     , (4,4)
+--     ]
+
+-- opponentHandSize :: Int
+-- opponentHandSize = 7

@@ -37,12 +37,21 @@ library:
   source-dirs: src
   exposed-modules:
     - Lib
+    
+    # Game logic
     - Game.Domino
     - Game.Board
     - Game.Player
     - Game.Rules
     - Game.GameState
     - Game.Actions
+
+    # UI
+    - GameUi.UiState
+    - GameUi.UiRender
+    - GameUi.UiEvents
+    - GameUi.UiButton
+    - GameUi.UiBoard
 
 executables:
   domino-exe:

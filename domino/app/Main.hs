@@ -1,6 +1,7 @@
 module Main where
 
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
+
 
 import GameUi.UiState
 import GameUi.UiRender
@@ -21,20 +22,18 @@ backgroundColor = black
 fps :: Int
 fps = 60
 
--- | Entry point of the application
 main :: IO ()
 main =
-    play
+    playIO
         window
         backgroundColor
         fps
         initialUiState
-        renderUi
+        (pure . renderUi)
         handleUiEvent
         updateUi
 
 
--- | UI update function.
--- | For now, the UI does not need time-based updates.
-updateUi :: Float -> UiState -> UiState
-updateUi _ uiState = uiState
+
+updateUi :: Float -> UiState -> IO UiState
+updateUi _ = pure
