@@ -1,10 +1,5 @@
 name:                domino
 version:             0.1.0.0
-github:              "githubuser/domino"
-license:             BSD-3-Clause
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2025 Author name here"
 
 extra-source-files:
 - CHANGELOG.md
@@ -19,11 +14,13 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/githubuser/domino#readme>
 
 dependencies:
-- base >= 4.7 && < 5
-- random-shuffle
-- random
-- gloss
-- vector
+  - base >= 4.7 && < 5
+  - gloss
+  - random
+  - random-shuffle
+  - mtl
+  - vector
+  - pretty
 
 ghc-options:
 - -Wall
@@ -40,10 +37,6 @@ library:
   source-dirs: src
   exposed-modules:
     - Lib
-    - Hand.Hand
-    - Player.Player
-    - Piece.Piece
-    - GameManager.GameManager
     - Game.Domino
     - Game.Board
     - Game.Player
@@ -61,6 +54,12 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - domino
+    - gloss
+    - random
+    - random-shuffle
+    - mtl
+    - vector
+    - pretty
 
 tests:
   domino-test:
@@ -72,3 +71,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - domino
+

@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
@@ -7,28 +7,15 @@ cabal-version: 2.2
 name:           domino
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/domino#readme>
-homepage:       https://github.com/githubuser/domino#readme
-bug-reports:    https://github.com/githubuser/domino/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2025 Author name here
-license:        BSD-3-Clause
+license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
 
-source-repository head
-  type: git
-  location: https://github.com/githubuser/domino
-
 library
   exposed-modules:
       Lib
-      Hand.Hand
-      Player.Player
-      Piece.Piece
-      GameManager.GameManager
       Game.Domino
       Game.Board
       Game.Player
@@ -36,13 +23,6 @@ library
       Game.GameState
       Game.Actions
   other-modules:
-      GameContext.GameContext
-      GameService.GameService
-      SystemState.SystemState
-      Table.Table
-      World.World
-      Paths_domino
-  autogen-modules:
       Paths_domino
   hs-source-dirs:
       src
@@ -50,6 +30,8 @@ library
   build-depends:
       base >=4.7 && <5
     , gloss
+    , mtl
+    , pretty
     , random
     , random-shuffle
     , vector
@@ -59,8 +41,6 @@ executable domino-exe
   main-is: Main.hs
   other-modules:
       Paths_domino
-  autogen-modules:
-      Paths_domino
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
@@ -68,6 +48,8 @@ executable domino-exe
       base >=4.7 && <5
     , domino
     , gloss
+    , mtl
+    , pretty
     , random
     , random-shuffle
     , vector
@@ -78,8 +60,6 @@ test-suite domino-test
   main-is: Spec.hs
   other-modules:
       Paths_domino
-  autogen-modules:
-      Paths_domino
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
@@ -87,6 +67,8 @@ test-suite domino-test
       base >=4.7 && <5
     , domino
     , gloss
+    , mtl
+    , pretty
     , random
     , random-shuffle
     , vector
