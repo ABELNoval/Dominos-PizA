@@ -21,6 +21,15 @@ dependencies:
   - mtl
   - vector
   - pretty
+  # Web dependencies
+  - scotty
+  - aeson
+  - text
+  - wai
+  - wai-middleware-static
+  - stm
+  - blaze-html
+  - http-types
 
 ghc-options:
 - -Wall
@@ -52,6 +61,11 @@ library:
     - GameUi.UiEvents
     - GameUi.UiButton
     - GameUi.UiBoard
+
+    # Web
+    - Web.Server
+    - Web.GameApi
+    - Web.Views
 
 executables:
   domino-exe:

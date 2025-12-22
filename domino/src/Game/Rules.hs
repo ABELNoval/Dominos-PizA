@@ -85,7 +85,7 @@ determinarGanador jugadores Nothing =
   -- Partida trancada: gana quien tiene menos puntos en la mano
   let jugadoresConFichas = filter tieneFichas jugadores
       menorPuntuacion    = minimum $ map puntosEnMano jugadoresConFichas
-      ganadores          = filter (\j -> puntosEnMano j == menorPuntuacion) jugadores
+      ganadores          = filter (\j -> puntosEnMano j == menorPuntuacion) jugadoresConFichas
   in case ganadores of
        [ganador] -> GanadorTrancado ganador
        varios    -> Empate varios
