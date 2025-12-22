@@ -23,10 +23,10 @@ import qualified Data.Text as T
 
 import Game.Domino (Domino(..))
 import Game.Board (Board, Lado(..), fichasEnMesa, extremoIzquierdo, extremoDerecho)
-import Game.Player (Player(..))
-import Game.GameState (GameState(..), iniciarPartida, jugadorActual, estaTerminado, getTablero, getJugadores, getPozo)
+import Game.Player (Player(..), playerHand)
+import Game.GameState (GameState(..), FaseJuego(..), iniciarPartida, jugadorActual, estaTerminado, getTablero, getJugadores, getPozo, siguienteTurno)
 import Game.Actions (Accion(..), ResultadoAccion(..), ejecutarAccion)
-import Game.Rules (ResultadoPartida(..))
+import Game.Rules (ResultadoPartida(..), puedeJugar, determinarGanador)
 
 -- =========================================================
 -- JSON Data Types
@@ -215,39 +215,72 @@ createNewGame config = do
 executeGameAction :: GameSession -> GameAction -> GameSession
 executeGameAction session action =
     let estado = gsState session
-        accion = parseAction action
+        gameMode = gsGameMode session
+        accion = parseAction action gameMode
     in case accion of
         Nothing -> session { gsSessionMessage = "Acción inválida" }
         Just acc -> 
-            case ejecutarAccion acc estado of
-                Exito nuevoEstado -> 
-                    let msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
-                    in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing }
-                Victoria ganador nuevoEstado ->
-                    let msg = T.pack $ "¡Victoria! " ++ playerName ganador ++ " ganó"
-                        winner = T.pack $ playerName ganador
-                    in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner }
-                Trancado resultado nuevoEstado ->
-                    let (msg, winner) = case resultado of
+            -- En modo NoRobadito, usamos una validación especial para Pasar
+            case (acc, gameMode) of
+                (Pasar, NoRobadito) -> ejecutarPasarNoRobadito session estado
+                _ -> case ejecutarAccion acc estado of
+                    Exito nuevoEstado -> 
+                        let msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
+                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing }
+                    Victoria ganador nuevoEstado ->
+                        let msg = T.pack $ "¡Victoria! " ++ playerName ganador ++ " ganó"
+                            winner = T.pack $ playerName ganador
+                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner }
+                    Trancado resultado nuevoEstado ->
+                        let (msg, winner) = case resultado of
+                                GanadorDomino p -> 
+                                    ("Trancado. Gana " ++ playerName p, Just $ T.pack $ playerName p)
+                                GanadorTrancado p -> 
+                                    ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
+                                Empate _ -> 
+                                    ("Trancado. ¡Empate!", Nothing)
+                        in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner }
+                    ErrorAccion err -> 
+                        session { gsSessionMessage = T.pack err }
+
+-- | Ejecutar pasar en modo NoRobadito (permite pasar aunque haya pozo)
+ejecutarPasarNoRobadito :: GameSession -> GameState -> GameSession
+ejecutarPasarNoRobadito session gs =
+    let jugador = jugadorActual gs
+        tablero = getTablero gs
+    in if puedeJugar (playerHand jugador) tablero
+         then session { gsSessionMessage = "No puedes pasar si tienes jugadas disponibles" }
+         else
+             let nuevosPases = gsPasesConsec gs + 1
+                 nJugadores  = length (getJugadores gs)
+                 gs1 = gs { gsPasesConsec = nuevosPases }
+             in if nuevosPases >= nJugadores
+                  then -- Todos pasaron, partida trancada
+                    let resultado = determinarGanador (getJugadores gs) Nothing
+                        gsFinal   = gs1 { gsFase = Terminado }
+                        (msg, winner) = case resultado of
                             GanadorDomino p -> 
                                 ("Trancado. Gana " ++ playerName p, Just $ T.pack $ playerName p)
                             GanadorTrancado p -> 
                                 ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
                             Empate _ -> 
                                 ("Trancado. ¡Empate!", Nothing)
-                    in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner }
-                ErrorAccion err -> 
-                    session { gsSessionMessage = T.pack err }
+                    in session { gsState = gsFinal, gsSessionMessage = T.pack msg, gsWinner = winner }
+                  else 
+                    let nuevoEstado = siguienteTurno gs1
+                        msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
+                    in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing }
 
--- | Parsear acción del JSON
-parseAction :: GameAction -> Maybe Accion
-parseAction (GameAction "play" (Just dj) (Just side)) =
+-- | Parsear acción del JSON (considera el modo de juego)
+parseAction :: GameAction -> GameMode -> Maybe Accion
+parseAction (GameAction "play" (Just dj) (Just side)) _ =
     let domino = Domino (djLeft dj) (djRight dj)
         lado = if side == "left" then Izquierda else Derecha
     in Just $ Jugar domino lado
-parseAction (GameAction "pass" _ _) = Just Pasar
-parseAction (GameAction "draw" _ _) = Just Robar
-parseAction _ = Nothing
+parseAction (GameAction "pass" _ _) _ = Just Pasar
+parseAction (GameAction "draw" _ _) NoRobadito = Just Pasar  -- En NoRobadito, draw se convierte en pass
+parseAction (GameAction "draw" _ _) Robadito = Just Robar
+parseAction _ _ = Nothing
 
 -- | Convertir estado del juego a JSON
 gameStateToJson :: GameSession -> GameResponse
