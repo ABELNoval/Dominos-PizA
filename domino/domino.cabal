@@ -22,19 +22,14 @@ library
       Game.Rules
       Game.GameState
       Game.Actions
-      GameUi.UiState
-      GameUi.UiRender
-      GameUi.UiEvents
-      GameUi.UiButton
-      GameUi.UiBoard
+      Game.AI
+      AI.Easy
+      AI.Medium
+      AI.Hard
       Web.Server
       Web.GameApi
       Web.Views
   other-modules:
-      Game.AI
-      GameUi.UiDomino
-      GameUi.UiHand
-      GameUi.UiSelection
       Paths_domino
   hs-source-dirs:
       src
@@ -43,6 +38,7 @@ library
       aeson
     , base >=4.7 && <5
     , blaze-html
+    , containers
     , gloss
     , http-types
     , mtl
@@ -68,6 +64,7 @@ executable domino-exe
       aeson
     , base >=4.7 && <5
     , blaze-html
+    , containers
     , domino
     , gloss
     , http-types
@@ -95,6 +92,7 @@ test-suite domino-test
       aeson
     , base >=4.7 && <5
     , blaze-html
+    , containers
     , domino
     , gloss
     , http-types

@@ -21,17 +21,21 @@ import Game.GameState (estaTerminado, getJugadores, getTablero, getPozo, gsTurno
 import Game.Player (playerHand)
 import Game.Board (Lado(..))
 import Game.Rules (jugadasPosibles)
+import Game.AI (chooseBotAction)
+import qualified Game.AI as AI
+import Game.Actions (Accion(..))
 
 -- | Ejecutar servidor web en puerto 3000
 runWebServer :: IO ()
 runWebServer = do
     putStrLn "==================================="
-    putStrLn "  🎲 Dominó Web Server"
+    putStrLn "  Domino Web Server"
     putStrLn "  Abre http://localhost:3000"
     putStrLn "==================================="
     
     -- Estado del juego compartido (usando STM para thread-safety)
-    initialGame <- createNewGame Facil
+    let defaultConfig = GameConfig Robadito FreeForAll Easy
+    initialGame <- createNewGame defaultConfig
     gameVar <- newTVarIO initialGame
     
     scotty 3000 $ do
@@ -54,10 +58,10 @@ runWebServer = do
         -- API: Nueva partida
         post "/api/new" $ do
             reqBody <- body
-            let difficulty = case eitherDecode reqBody of
-                    Left _ -> Facil  -- Default si no se puede parsear
-                    Right diff -> diff
-            newSession <- liftIO $ createNewGame difficulty
+            let config = case eitherDecode reqBody of
+                    Left _ -> GameConfig Robadito FreeForAll Easy
+                    Right cfg -> cfg
+            newSession <- liftIO $ createNewGame config
             liftIO $ atomically $ writeTVar gameVar newSession
             json $ gameStateToJson newSession
         
@@ -76,26 +80,34 @@ runWebServer = do
                         return newSession
                     json $ gameStateToJson session
         
-        -- API: Jugada automática del bot
+        -- API: Jugada automática del bot usando la IA apropiada
         post "/api/bot-play" $ do
             session <- liftIO $ atomically $ do
                 current <- readTVar gameVar
                 let estado = gsState current
                     turno = gsTurnoActual estado
+                    difficulty = gsDifficulty current
+                    gameMode = gsGameMode current
                 if estaTerminado estado || turno == 0
                     then return current
                     else do
-                        let jugadores = getJugadores estado
-                            jugador = jugadores !! turno
-                            mano = playerHand jugador
-                            tablero = getTablero estado
-                            jugadas = jugadasPosibles mano tablero
-                            pozo = getPozo estado
-                            newSession = case jugadas of
-                                ((d, l):_) -> executeGameAction current (GameAction "play" (Just $ dominoToJson' d) (Just $ sideToText l))
-                                [] -> if null pozo
-                                      then executeGameAction current (GameAction "pass" Nothing Nothing)
-                                      else executeGameAction current (GameAction "draw" Nothing Nothing)
+                        -- Convertir dificultad del API a dificultad de la IA
+                        let aiDiff = case difficulty of
+                              Easy -> AI.Easy
+                              Medium -> AI.Medium
+                              Hard -> AI.Hard
+                        -- Obtener la acción del bot usando la IA
+                        let accion = chooseBotAction aiDiff estado
+                        -- Convertir la acción a GameAction
+                        let gameAction = case accion of
+                              Jugar d l -> GameAction "play" (Just $ dominoToJson' d) (Just $ sideToText l)
+                              Pasar -> GameAction "pass" Nothing Nothing
+                              Robar -> 
+                                -- En modo NoRobadito, el bot pasa en lugar de robar
+                                case gameMode of
+                                  NoRobadito -> GameAction "pass" Nothing Nothing
+                                  Robadito -> GameAction "draw" Nothing Nothing
+                        let newSession = executeGameAction current gameAction
                         writeTVar gameVar newSession
                         return newSession
             json $ gameStateToJson session

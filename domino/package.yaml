@@ -21,6 +21,7 @@ dependencies:
   - mtl
   - vector
   - pretty
+  - containers
   # Web dependencies
   - scotty
   - aeson
@@ -54,13 +55,12 @@ library:
     - Game.Rules
     - Game.GameState
     - Game.Actions
+    - Game.AI
 
-    # UI
-    - GameUi.UiState
-    - GameUi.UiRender
-    - GameUi.UiEvents
-    - GameUi.UiButton
-    - GameUi.UiBoard
+    # AI modules
+    - AI.Easy
+    - AI.Medium
+    - AI.Hard
 
     # Web
     - Web.Server

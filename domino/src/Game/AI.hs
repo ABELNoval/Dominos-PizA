@@ -1,20 +1,21 @@
 module Game.AI
-  ( chooseBotAccion
+  ( chooseBotAction
+  , Difficulty(..)
   ) where
 
-import Game.GameState (GameState, jugadorActual, getTablero, getPozo)
-import Game.Player (playerHand)
-import Game.Rules (jugadasPosibles)
+import Game.GameState (GameState)
 import Game.Actions (Accion(..))
+import AI.Easy (chooseEasyMove)
+import AI.Medium (chooseMediumMove)
+import AI.Hard (chooseHardMove)
 
--- | Elegir una acción para el bot: primera jugada posible; si no hay, robar si hay pozo; si no, pasar.
-chooseBotAccion :: GameState -> Accion
-chooseBotAccion gs =
-  let jugador = jugadorActual gs
-      mano = playerHand jugador
-      tablero = getTablero gs
-      jugadas = jugadasPosibles mano tablero
-      pozo = getPozo gs
-  in case jugadas of
-       ((d, l):_) -> Jugar d l
-       [] -> if null pozo then Pasar else Robar
+-- | Niveles de dificultad de la IA
+data Difficulty = Easy | Medium | Hard
+  deriving (Show, Eq)
+
+-- | Elegir una acción para el bot según la dificultad seleccionada
+chooseBotAction :: Difficulty -> GameState -> Accion
+chooseBotAction difficulty gs = case difficulty of
+  Easy   -> chooseEasyMove gs
+  Medium -> chooseMediumMove gs
+  Hard   -> chooseHardMove gs
