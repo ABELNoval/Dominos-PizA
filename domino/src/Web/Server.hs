@@ -7,20 +7,16 @@ module Web.Server
 import Web.Scotty
 import Network.Wai.Middleware.Static (staticPolicy, addBase)
 import Control.Concurrent.STM
-import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (eitherDecode)
 import Network.HTTP.Types.Status (status400)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text as T
-import Data.String (fromString)
 
 import Web.GameApi
 import Web.Views
 import Game.Domino (Domino(..))
-import Game.GameState (estaTerminado, getJugadores, getTablero, getPozo, gsTurnoActual)
-import Game.Player (playerHand)
+import Game.GameState (estaTerminado, gsTurnoActual)
 import Game.Board (Lado(..))
-import Game.Rules (jugadasPosibles)
 import Game.AI (chooseBotAction)
 import qualified Game.AI as AI
 import Game.Actions (Accion(..))

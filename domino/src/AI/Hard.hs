@@ -6,7 +6,6 @@ import Game.GameState (GameState, jugadorActual, getTablero, getPozo)
 import Game.Player (playerHand)
 import Game.Rules (jugadasPosibles)
 import Game.Actions (Accion(..))
-import Game.Domino (Domino(..), esDoble, puntos)
 
 -- | IA Difícil (Placeholder):
 -- Por ahora funciona igual que Medium

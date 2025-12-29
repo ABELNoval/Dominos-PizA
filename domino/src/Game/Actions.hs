@@ -6,8 +6,8 @@ module Game.Actions
   ) where
 
 import Game.Domino (Domino)
-import Game.Board (Board, Lado(..), colocarFicha)
-import Game.Player (Player(..), quitarFicha, agregarFicha, tieneFichas, puntosEnMano)
+import Game.Board (Lado(..), colocarFicha)
+import Game.Player (Player(..), quitarFicha, agregarFicha, tieneFichas)
 import Game.GameState
     ( GameState(..)
     , FaseJuego(..)
@@ -21,6 +21,7 @@ import Game.GameState
     , getPozo
     )
 import Game.Rules (jugadasPosibles, puedeJugar, estaTrancado, determinarGanador, ResultadoPartida(..))
+
 -- | Acciones posibles en el juego.
 data Accion
   = Jugar Domino Lado   -- Jugar una ficha en un lado del tablero

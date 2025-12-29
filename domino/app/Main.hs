@@ -1,5 +1,3 @@
-module Main where
-
 import System.Environment (getArgs)
 import Web.Server (runWebServer)
 
