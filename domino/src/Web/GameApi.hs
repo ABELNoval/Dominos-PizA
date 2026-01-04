@@ -122,7 +122,7 @@ instance FromJSON VsMode where
             _ -> return FreeForAll
 
 -- | Dificultad de la IA
-data Difficulty = Easy | Medium | Hard
+data Difficulty = Easy | Medium | Hard | Extreme
     deriving (Show, Eq, Generic)
 
 instance ToJSON Difficulty
@@ -133,6 +133,7 @@ instance FromJSON Difficulty where
             "easy" -> return Easy
             "medium" -> return Medium
             "hard" -> return Hard
+            "extreme" -> return Extreme
             _ -> return Easy
 
 -- | Configuración completa del juego
@@ -160,6 +161,7 @@ instance FromJSON GameConfig where
               "easy" -> Easy
               "medium" -> Medium
               "hard" -> Hard
+              "extreme" -> Extreme
               _ -> Easy
         return $ GameConfig gameMode vsMode difficulty
 
@@ -203,6 +205,7 @@ createNewGame config = do
             Easy -> "Fácil"
             Medium -> "Medio"
             Hard -> "Difícil"
+            Extreme -> "Extremo"
         modeText = case gcGameMode config of
             Robadito -> "Robadito"
             NoRobadito -> "Sin robar"
@@ -367,6 +370,7 @@ gameStateToJson session =
             Easy -> "easy"
             Medium -> "medium"
             Hard -> "hard"
+            Extreme -> "extreme"
     in GameResponse
         { grBoard = boardToJson tablero
         , grPlayers = map playerToJson jugadores

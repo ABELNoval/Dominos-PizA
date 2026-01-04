@@ -61,6 +61,8 @@ library:
     - AI.Easy
     - AI.Medium
     - AI.Hard
+    - AI.Hard2v2
+    - AI.Extreme
 
     # Web
     - Web.Server

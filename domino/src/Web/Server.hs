@@ -94,6 +94,7 @@ runWebServer = do
                               Easy -> AI.Easy
                               Medium -> AI.Medium
                               Hard -> AI.Hard
+                              Extreme -> AI.Extreme
                         -- Obtener la acción del bot usando la IA (2vs2 o normal)
                         let accion = case vsMode of
                               TwoVsTwo -> chooseBotAction2v2 aiDiff history estado
