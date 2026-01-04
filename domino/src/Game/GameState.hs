@@ -2,6 +2,7 @@ module Game.GameState
   ( GameState(..)
   , FaseJuego(..)
   , iniciarPartida
+  , iniciarPartidaEquipos
   , jugadorActual
   , siguienteTurno
   , actualizarJugador
@@ -15,7 +16,7 @@ module Game.GameState
 
 import Game.Domino (Domino, generarFichasCompletas)
 import Game.Board (Board, boardVacio)
-import Game.Player (Player(..), mkPlayer, agregarFicha)
+import Game.Player (Player(..), Team(..), mkPlayer, mkPlayerWithTeam, agregarFicha)
 import Game.Rules (estaTrancado, quienEmpieza)
 import System.Random (StdGen, newStdGen)
 import System.Random.Shuffle (shuffle')
@@ -63,6 +64,42 @@ iniciarPartida nombres fichasPorJugador = do
       }
   where
     crearJugador pid nombre mano = (mkPlayer pid nombre) { playerHand = mano }
+
+-- | Crear estado inicial de una partida por equipos (2vs2).
+-- Jugadores 0 y 2 son equipo A, jugadores 1 y 3 son equipo B.
+-- El orden de turnos es: 0 -> 1 -> 2 -> 3 (alternando equipos).
+iniciarPartidaEquipos :: [String] -> Int -> IO GameState
+iniciarPartidaEquipos nombres fichasPorJugador = do
+    gen <- newStdGen
+    let todasFichas     = generarFichasCompletas
+        fichasBarajadas = shuffle' todasFichas (length todasFichas) gen
+        nJugadores      = length nombres
+        (manos, pozo)   = repartirFichas fichasBarajadas nJugadores fichasPorJugador
+        -- Asignar equipos: índices 0,2 = TeamA, índices 1,3 = TeamB
+        equipos         = [TeamA, TeamB, TeamA, TeamB]
+        jugadores       = zipWith4 crearJugadorEquipo [0..] nombres manos equipos
+
+    -- Determinar quién empieza
+    let turnoInicial = case quienEmpieza jugadores of
+          Just (jugador, _) -> playerId jugador
+          Nothing           -> 0
+
+    pure $ GameState
+      { gsJugadores   = jugadores
+      , gsTurnoActual = turnoInicial
+      , gsTablero     = boardVacio
+      , gsPozo        = pozo
+      , gsFase        = EnCurso
+      , gsPasesConsec = 0
+      }
+  where
+    crearJugadorEquipo pid nombre mano team = 
+      (mkPlayerWithTeam pid nombre team) { playerHand = mano }
+
+-- | Helper para zipWith con 4 listas
+zipWith4 :: (a -> b -> c -> d -> e) -> [a] -> [b] -> [c] -> [d] -> [e]
+zipWith4 f (a:as) (b:bs) (c:cs) (d:ds) = f a b c d : zipWith4 f as bs cs ds
+zipWith4 _ _ _ _ _ = []
 
 -- | Repartir fichas entre jugadores.
 repartirFichas :: [Domino] -> Int -> Int -> ([[Domino]], [Domino])

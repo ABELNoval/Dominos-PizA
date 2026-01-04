@@ -17,7 +17,7 @@ import Web.Views
 import Game.Domino (Domino(..))
 import Game.GameState (estaTerminado, gsTurnoActual)
 import Game.Board (Lado(..))
-import Game.AI (chooseBotAction)
+import Game.AI (chooseBotAction, chooseBotAction2v2)
 import qualified Game.AI as AI
 import Game.Actions (Accion(..))
 
@@ -30,7 +30,7 @@ runWebServer = do
     putStrLn "==================================="
     
     -- Estado del juego compartido (usando STM para thread-safety)
-    let defaultConfig = GameConfig Robadito FreeForAll Easy
+    let defaultConfig = GameConfig Robadito FreeForAll Easy Nothing
     initialGame <- createNewGame defaultConfig
     gameVar <- newTVarIO initialGame
     
@@ -55,10 +55,19 @@ runWebServer = do
         post "/api/new" $ do
             reqBody <- body
             let config = case eitherDecode reqBody of
-                    Left _ -> GameConfig Robadito FreeForAll Easy
+                    Left _ -> GameConfig Robadito FreeForAll Easy Nothing
                     Right cfg -> cfg
             newSession <- liftIO $ createNewGame config
             liftIO $ atomically $ writeTVar gameVar newSession
+            json $ gameStateToJson newSession
+        
+        -- API: Iniciar siguiente ronda (Data a 100)
+        post "/api/next-round" $ do
+            newSession <- liftIO $ do
+                current <- readTVarIO gameVar
+                next <- startNextRound current
+                atomically $ writeTVar gameVar next
+                return next
             json $ gameStateToJson newSession
         
         -- API: Realizar jugada
@@ -84,6 +93,8 @@ runWebServer = do
                     turno = gsTurnoActual estado
                     difficulty = gsDifficulty current
                     gameMode = gsGameMode current
+                    vsMode = gsVsMode current
+                    history = gsPlayedHistory current
                 if estaTerminado estado || turno == 0
                     then return current
                     else do
@@ -92,8 +103,11 @@ runWebServer = do
                               Easy -> AI.Easy
                               Medium -> AI.Medium
                               Hard -> AI.Hard
-                        -- Obtener la acción del bot usando la IA
-                        let accion = chooseBotAction aiDiff estado
+                              Extreme -> AI.Extreme
+                        -- Obtener la acción del bot usando la IA (2vs2 o normal)
+                        let accion = case vsMode of
+                              TwoVsTwo -> chooseBotAction2v2 aiDiff history estado
+                              _        -> chooseBotAction aiDiff estado
                         -- Convertir la acción a GameAction
                         let gameAction = case accion of
                               Jugar d l -> GameAction "play" (Just $ dominoToJson' d) (Just $ sideToText l)

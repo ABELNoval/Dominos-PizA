@@ -3,13 +3,16 @@ module Game.Rules
   , puedeJugar
   , estaTrancado
   , determinarGanador
+  , determinarGanadorEquipos
   , ResultadoPartida(..)
+  , ResultadoEquipos(..)
   , quienEmpieza
+  , puntosEquipo
   ) where
 
 import Game.Domino (Domino(..), puedeConectar, esDoble, puntos)
 import Game.Board (Board, extremoIzquierdo, extremoDerecho, Lado(..), esTableroVacio)
-import Game.Player (Player(..), Hand, puntosEnMano, tieneFichas)
+import Game.Player (Player(..), Hand, Team(..), puntosEnMano, tieneFichas)
 import Data.List (maximumBy, minimumBy)
 import Data.Ord (comparing)
 
@@ -18,6 +21,13 @@ data ResultadoPartida
   = GanadorDomino Player       -- Un jugador se quedó sin fichas
   | GanadorTrancado Player     -- Partida trancada, gana quien tiene menos puntos
   | Empate [Player]            -- Empate entre varios jugadores
+  deriving (Show, Eq)
+
+-- | Resultado de una partida por equipos (2vs2).
+data ResultadoEquipos
+  = GanadorEquipoDomino Team Player    -- Un jugador del equipo se quedó sin fichas
+  | GanadorEquipoTrancado Team         -- Equipo con menos puntos en partida trancada
+  | EmpateEquipos                      -- Empate entre equipos
   deriving (Show, Eq)
 
 -- | Devuelve todas las jugadas posibles para un jugador dado el tablero actual.
@@ -89,3 +99,23 @@ determinarGanador jugadores Nothing =
   in case ganadores of
        [ganador] -> GanadorTrancado ganador
        varios    -> Empate varios
+
+-- | Determina el ganador de la partida por equipos (2vs2).
+-- En modo equipos, el equipo gana si uno de sus miembros se queda sin fichas,
+-- o si la suma de puntos del equipo es menor en caso de trancado.
+determinarGanadorEquipos :: [Player] -> Maybe Player -> ResultadoEquipos
+determinarGanadorEquipos jugadores (Just ganadorDomino) =
+  GanadorEquipoDomino (playerTeam ganadorDomino) ganadorDomino
+determinarGanadorEquipos jugadores Nothing =
+  -- Partida trancada: gana el equipo con menos puntos totales
+  let puntosA = puntosEquipo TeamA jugadores
+      puntosB = puntosEquipo TeamB jugadores
+  in if puntosA < puntosB
+       then GanadorEquipoTrancado TeamA
+       else if puntosB < puntosA
+         then GanadorEquipoTrancado TeamB
+         else EmpateEquipos
+
+-- | Calcular los puntos totales de un equipo.
+puntosEquipo :: Team -> [Player] -> Int
+puntosEquipo team = sum . map puntosEnMano . filter (\p -> playerTeam p == team)
