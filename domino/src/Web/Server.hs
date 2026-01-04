@@ -30,7 +30,7 @@ runWebServer = do
     putStrLn "==================================="
     
     -- Estado del juego compartido (usando STM para thread-safety)
-    let defaultConfig = GameConfig Robadito FreeForAll Easy
+    let defaultConfig = GameConfig Robadito FreeForAll Easy Nothing
     initialGame <- createNewGame defaultConfig
     gameVar <- newTVarIO initialGame
     
@@ -55,10 +55,19 @@ runWebServer = do
         post "/api/new" $ do
             reqBody <- body
             let config = case eitherDecode reqBody of
-                    Left _ -> GameConfig Robadito FreeForAll Easy
+                    Left _ -> GameConfig Robadito FreeForAll Easy Nothing
                     Right cfg -> cfg
             newSession <- liftIO $ createNewGame config
             liftIO $ atomically $ writeTVar gameVar newSession
+            json $ gameStateToJson newSession
+        
+        -- API: Iniciar siguiente ronda (Data a 100)
+        post "/api/next-round" $ do
+            newSession <- liftIO $ do
+                current <- readTVarIO gameVar
+                next <- startNextRound current
+                atomically $ writeTVar gameVar next
+                return next
             json $ gameStateToJson newSession
         
         -- API: Realizar jugada
