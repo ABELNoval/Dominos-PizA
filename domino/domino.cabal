@@ -30,6 +30,7 @@ library
       Web.GameApi
       Web.Views
   other-modules:
+      AI.Hard2v2
       Paths_domino
   hs-source-dirs:
       src

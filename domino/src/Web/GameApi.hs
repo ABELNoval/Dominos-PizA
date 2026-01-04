@@ -23,10 +23,10 @@ import qualified Data.Text as T
 
 import Game.Domino (Domino(..))
 import Game.Board (Board, Lado(..), fichasEnMesa, extremoIzquierdo, extremoDerecho)
-import Game.Player (Player(..), playerHand)
-import Game.GameState (GameState(..), FaseJuego(..), iniciarPartida, jugadorActual, estaTerminado, getTablero, getJugadores, getPozo, siguienteTurno)
+import Game.Player (Player(..), Team(..), playerHand)
+import Game.GameState (GameState(..), FaseJuego(..), iniciarPartida, iniciarPartidaEquipos, jugadorActual, estaTerminado, getTablero, getJugadores, getPozo, siguienteTurno)
 import Game.Actions (Accion(..), ResultadoAccion(..), ejecutarAccion)
-import Game.Rules (ResultadoPartida(..), puedeJugar, determinarGanador)
+import Game.Rules (ResultadoPartida(..), ResultadoEquipos(..), puedeJugar, determinarGanador, determinarGanadorEquipos)
 
 -- =========================================================
 -- JSON Data Types
@@ -48,6 +48,7 @@ data PlayerJson = PlayerJson
     { pjName :: T.Text
     , pjHand :: [DominoJson]
     , pjHandCount :: Int
+    , pjTeam :: T.Text
     } deriving (Show, Generic)
 
 instance ToJSON PlayerJson
@@ -166,6 +167,9 @@ instance FromJSON GameConfig where
 -- Game Session
 -- =========================================================
 
+-- | Historial de fichas jugadas para la IA 2vs2
+type PlayedHistory = [(Domino, Int)]
+
 data GameSession = GameSession
     { gsState :: GameState
     , gsSessionMessage :: T.Text
@@ -173,6 +177,7 @@ data GameSession = GameSession
     , gsVsMode :: VsMode
     , gsDifficulty :: Difficulty
     , gsWinner :: Maybe T.Text
+    , gsPlayedHistory :: PlayedHistory  -- Historial para IA 2vs2
     }
 
 -- =========================================================
@@ -185,12 +190,14 @@ createNewGame config = do
     let nombres = case gcVsMode config of
             OneVsOne -> ["Tú", "Bot 1"]
             FreeForAll -> ["Tú", "Bot 1", "Bot 2", "Bot 3"]
-            TwoVsTwo -> ["Tú", "Compañero", "Rival 1", "Rival 2"]
+            TwoVsTwo -> ["Tú", "Rival 1", "Compañero", "Rival 2"]  -- Orden: A, B, A, B
         fichasPorJugador = case gcVsMode config of
             OneVsOne -> 10
             FreeForAll -> 10
             TwoVsTwo -> 10
-    estado <- iniciarPartida nombres fichasPorJugador
+    estado <- case gcVsMode config of
+        TwoVsTwo -> iniciarPartidaEquipos nombres fichasPorJugador
+        _        -> iniciarPartida nombres fichasPorJugador
     let jugador = jugadorActual estado
         diffText = case gcDifficulty config of
             Easy -> "Fácil"
@@ -202,7 +209,7 @@ createNewGame config = do
         vsText = case gcVsMode config of
             OneVsOne -> "1 vs 1"
             FreeForAll -> "Todos vs Todos"
-            TwoVsTwo -> "2 vs 2"
+            TwoVsTwo -> "2 vs 2 (Equipos)"
     return $ GameSession 
         estado 
         (T.pack $ "¡Juego iniciado! " ++ modeText ++ " | " ++ vsText ++ " | Dificultad: " ++ diffText ++ ". Turno de " ++ playerName jugador)
@@ -210,44 +217,84 @@ createNewGame config = do
         (gcVsMode config)
         (gcDifficulty config)
         Nothing
+        []  -- Historial vacío al inicio
 
 -- | Ejecutar una acción del jugador
 executeGameAction :: GameSession -> GameAction -> GameSession
 executeGameAction session action =
     let estado = gsState session
         gameMode = gsGameMode session
+        vsMode = gsVsMode session
+        turnoActual = gsTurnoActual estado
         accion = parseAction action gameMode
     in case accion of
         Nothing -> session { gsSessionMessage = "Acción inválida" }
         Just acc -> 
+            -- Registrar la ficha jugada en el historial si es una jugada
+            let historialActualizado = case acc of
+                    Jugar ficha _ -> gsPlayedHistory session ++ [(ficha, turnoActual)]
+                    _ -> gsPlayedHistory session
+            in 
             -- En modo NoRobadito, usamos una validación especial para Pasar
             case (acc, gameMode) of
                 (Pasar, NoRobadito) -> ejecutarPasarNoRobadito session estado
                 _ -> case ejecutarAccion acc estado of
                     Exito nuevoEstado -> 
                         let msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
-                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing }
+                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing, gsPlayedHistory = historialActualizado }
                     Victoria ganador nuevoEstado ->
-                        let msg = T.pack $ "¡Victoria! " ++ playerName ganador ++ " ganó"
-                            winner = T.pack $ playerName ganador
-                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner }
+                        case vsMode of
+                            TwoVsTwo -> 
+                                let teamName = case playerTeam ganador of
+                                        TeamA -> "Equipo A (Tú y Compañero)"
+                                        TeamB -> "Equipo B (Rivales)"
+                                        NoTeam -> playerName ganador
+                                    msg = T.pack $ "¡Victoria! " ++ teamName ++ " ganó - " ++ playerName ganador ++ " se quedó sin fichas"
+                                    winner = T.pack teamName
+                                in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner, gsPlayedHistory = historialActualizado }
+                            _ ->
+                                let msg = T.pack $ "¡Victoria! " ++ playerName ganador ++ " ganó"
+                                    winner = T.pack $ playerName ganador
+                                in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner, gsPlayedHistory = historialActualizado }
                     Trancado resultado nuevoEstado ->
-                        let (msg, winner) = case resultado of
-                                GanadorDomino p -> 
-                                    ("Trancado. Gana " ++ playerName p, Just $ T.pack $ playerName p)
-                                GanadorTrancado p -> 
-                                    ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
-                                Empate _ -> 
-                                    ("Trancado. ¡Empate!", Nothing)
-                        in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner }
+                        case vsMode of
+                            TwoVsTwo ->
+                                let jugadores = getJugadores nuevoEstado
+                                    resultadoEquipos = determinarGanadorEquipos jugadores Nothing
+                                    (msg, winner) = case resultadoEquipos of
+                                        GanadorEquipoDomino team _ -> 
+                                            let teamName = teamToString team
+                                            in ("Gana " ++ teamName, Just $ T.pack teamName)
+                                        GanadorEquipoTrancado team -> 
+                                            let teamName = teamToString team
+                                            in ("Trancado. Gana " ++ teamName ++ " (menos puntos)", Just $ T.pack teamName)
+                                        EmpateEquipos -> 
+                                            ("Trancado. ¡Empate entre equipos!", Nothing)
+                                in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner, gsPlayedHistory = historialActualizado }
+                            _ ->
+                                let (msg, winner) = case resultado of
+                                        GanadorDomino p -> 
+                                            ("Trancado. Gana " ++ playerName p, Just $ T.pack $ playerName p)
+                                        GanadorTrancado p -> 
+                                            ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
+                                        Empate _ -> 
+                                            ("Trancado. ¡Empate!", Nothing)
+                                in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner, gsPlayedHistory = historialActualizado }
                     ErrorAccion err -> 
                         session { gsSessionMessage = T.pack err }
+
+-- | Convertir Team a String legible
+teamToString :: Team -> String
+teamToString TeamA = "Equipo A (Tú y Compañero)"
+teamToString TeamB = "Equipo B (Rivales)"
+teamToString NoTeam = "Sin equipo"
 
 -- | Ejecutar pasar en modo NoRobadito (permite pasar aunque haya pozo)
 ejecutarPasarNoRobadito :: GameSession -> GameState -> GameSession
 ejecutarPasarNoRobadito session gs =
     let jugador = jugadorActual gs
         tablero = getTablero gs
+        vsMode = gsVsMode session
     in if puedeJugar (playerHand jugador) tablero
          then session { gsSessionMessage = "No puedes pasar si tienes jugadas disponibles" }
          else
@@ -256,15 +303,29 @@ ejecutarPasarNoRobadito session gs =
                  gs1 = gs { gsPasesConsec = nuevosPases }
              in if nuevosPases >= nJugadores
                   then -- Todos pasaron, partida trancada
-                    let resultado = determinarGanador (getJugadores gs) Nothing
-                        gsFinal   = gs1 { gsFase = Terminado }
-                        (msg, winner) = case resultado of
-                            GanadorDomino p -> 
-                                ("Trancado. Gana " ++ playerName p, Just $ T.pack $ playerName p)
-                            GanadorTrancado p -> 
-                                ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
-                            Empate _ -> 
-                                ("Trancado. ¡Empate!", Nothing)
+                    let gsFinal = gs1 { gsFase = Terminado }
+                        jugadores = getJugadores gs
+                        (msg, winner) = case vsMode of
+                            TwoVsTwo ->
+                                let resultadoEquipos = determinarGanadorEquipos jugadores Nothing
+                                in case resultadoEquipos of
+                                    GanadorEquipoDomino team _ -> 
+                                        let teamName = teamToString team
+                                        in ("Gana " ++ teamName, Just $ T.pack teamName)
+                                    GanadorEquipoTrancado team -> 
+                                        let teamName = teamToString team
+                                        in ("Trancado. Gana " ++ teamName ++ " (menos puntos)", Just $ T.pack teamName)
+                                    EmpateEquipos -> 
+                                        ("Trancado. ¡Empate entre equipos!", Nothing)
+                            _ ->
+                                let resultado = determinarGanador jugadores Nothing
+                                in case resultado of
+                                    GanadorDomino p -> 
+                                        ("Trancado. Gana " ++ playerName p, Just $ T.pack $ playerName p)
+                                    GanadorTrancado p -> 
+                                        ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
+                                    Empate _ -> 
+                                        ("Trancado. ¡Empate!", Nothing)
                     in session { gsState = gsFinal, gsSessionMessage = T.pack msg, gsWinner = winner }
                   else 
                     let nuevoEstado = siguienteTurno gs1
@@ -333,7 +394,14 @@ playerToJson player = PlayerJson
     { pjName = T.pack $ playerName player
     , pjHand = map dominoToJson (playerHand player)
     , pjHandCount = length (playerHand player)
+    , pjTeam = teamToText (playerTeam player)
     }
+
+-- | Convertir Team a texto para JSON
+teamToText :: Team -> T.Text
+teamToText TeamA = "A"
+teamToText TeamB = "B"
+teamToText NoTeam = ""
 
 dominoToJson :: Domino -> DominoJson
 dominoToJson (Domino a b) = DominoJson a b

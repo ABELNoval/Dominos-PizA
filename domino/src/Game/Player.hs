@@ -1,13 +1,17 @@
 module Game.Player
   ( Player(..)
   , Hand
+  , Team(..)
   , mkPlayer
+  , mkPlayerWithTeam
   , tieneFichas
   , cantidadFichas
   , quitarFicha
   , agregarFicha
   , puntosEnMano
   , tieneFicha
+  , esDelEquipo
+  , companerosDeEquipo
   ) where
 
 import Game.Domino (Domino, puntos)
@@ -15,19 +19,34 @@ import Game.Domino (Domino, puntos)
 -- | Mano de un jugador: lista de fichas.
 type Hand = [Domino]
 
--- | Un jugador con identificador, nombre y mano de fichas.
+-- | Equipo del jugador (para modo 2vs2)
+data Team = TeamA | TeamB | NoTeam
+  deriving (Show, Eq)
+
+-- | Un jugador con identificador, nombre, mano de fichas y equipo.
 data Player = Player
   { playerId   :: Int
   , playerName :: String
   , playerHand :: Hand
+  , playerTeam :: Team
   } deriving (Show, Eq)
 
--- | Crear un jugador con mano vacía.
+-- | Crear un jugador con mano vacía (sin equipo).
 mkPlayer :: Int -> String -> Player
 mkPlayer pid name = Player
   { playerId   = pid
   , playerName = name
   , playerHand = []
+  , playerTeam = NoTeam
+  }
+
+-- | Crear un jugador con mano vacía y equipo asignado.
+mkPlayerWithTeam :: Int -> String -> Team -> Player
+mkPlayerWithTeam pid name team = Player
+  { playerId   = pid
+  , playerName = name
+  , playerHand = []
+  , playerTeam = team
   }
 
 -- | ¿El jugador tiene fichas en la mano?
@@ -63,3 +82,14 @@ puntosEnMano = sum . map puntos . playerHand
 -- | ¿El jugador tiene esta ficha en la mano?
 tieneFicha :: Domino -> Player -> Bool
 tieneFicha ficha player = ficha `elem` playerHand player
+
+-- | ¿El jugador pertenece a un equipo específico?
+esDelEquipo :: Team -> Player -> Bool
+esDelEquipo team player = playerTeam player == team
+
+-- | Obtener compañeros de equipo (incluido el jugador mismo)
+companerosDeEquipo :: Player -> [Player] -> [Player]
+companerosDeEquipo player players = 
+  case playerTeam player of
+    NoTeam -> [player]
+    team   -> filter (esDelEquipo team) players
