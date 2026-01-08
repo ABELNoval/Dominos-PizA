@@ -26,7 +26,7 @@ import Data.Aeson (ToJSON(..), FromJSON(..), object, (.=), (.:), (.:?), (.!=), w
 import qualified Data.Text as T
 
 import Game.Domino (Domino(..))
-import Game.Board (Board, Lado(..), fichasEnMesa, extremoIzquierdo, extremoDerecho)
+import Game.Board (Board, Lado(..), extremoIzquierdo, extremoDerecho, fichasEnMesa)
 import Game.Player (Player(..), Team(..), playerHand)
 import Game.GameState (GameState(..), FaseJuego(..), iniciarPartida, iniciarPartidaEquipos, jugadorActual, estaTerminado, getTablero, getJugadores, getPozo, siguienteTurno)
 import Game.Actions (Accion(..), ResultadoAccion(..), ejecutarAccion)
@@ -57,8 +57,21 @@ data PlayerJson = PlayerJson
 
 instance ToJSON PlayerJson
 
+-- | Una ficha posicionada en el tablero para JSON
+data TileJson = TileJson
+    { tjLeft :: Int
+    , tjRight :: Int
+    , tjX :: Int
+    , tjY :: Int
+    , tjIsVertical :: Bool
+    } deriving (Show, Generic)
+
+instance ToJSON TileJson where
+    toJSON (TileJson l r x y v) = object 
+        ["left" .= l, "right" .= r, "x" .= x, "y" .= y, "isVertical" .= v]
+
 data BoardJson = BoardJson
-    { bjTiles :: [DominoJson]
+    { bjTiles :: [TileJson]  -- Ahora incluye posiciones
     , bjLeftEnd :: Maybe Int
     , bjRightEnd :: Maybe Int
     } deriving (Show, Generic)
@@ -251,6 +264,17 @@ initialMatchState cfg = MatchState
 -- | Historial de fichas jugadas para la IA 2vs2
 type PlayedHistory = [(Domino, Int)]
 
+-- | Posición visual de una ficha en el tablero
+data VisualTile = VisualTile
+    { vtDomino :: Domino
+    , vtX :: Int        -- Posición X en píxeles
+    , vtY :: Int        -- Posición Y en píxeles  
+    , vtIsVertical :: Bool  -- True si la ficha está vertical (dobles)
+    } deriving (Show, Eq)
+
+-- | Lista de fichas con sus posiciones visuales
+type BoardPositions = [VisualTile]
+
 data GameSession = GameSession
     { gsState :: GameState
     , gsSessionMessage :: T.Text
@@ -261,6 +285,7 @@ data GameSession = GameSession
     , gsPlayedHistory :: PlayedHistory  -- Historial para IA 2vs2
     , gsMatchState :: Maybe MatchState  -- Estado de Data a 100
     , gsRoundWasCapicua :: Bool         -- Si la ronda actual terminó capicúa
+    , gsFirstTileIndex :: Int           -- Índice de la primera ficha jugada (para centrar)
     }
 
 -- =========================================================
@@ -311,6 +336,7 @@ createNewGame config = do
         []  -- Historial vacío al inicio
         matchState
         False  -- No capicúa al inicio
+        0      -- Índice de primera ficha (se actualizará cuando se juegue)
 
 -- | Ejecutar una acción del jugador
 executeGameAction :: GameSession -> GameAction -> GameSession
@@ -320,6 +346,8 @@ executeGameAction session action =
         vsMode = gsVsMode session
         turnoActual = gsTurnoActual estado
         accion = parseAction action gameMode
+        tableroAntes = getTablero estado
+        tableroVacio = null (fichasEnMesa tableroAntes)
     in case accion of
         Nothing -> session { gsSessionMessage = "Acción inválida" }
         Just acc -> 
@@ -327,6 +355,15 @@ executeGameAction session action =
             let historialActualizado = case acc of
                     Jugar ficha _ -> gsPlayedHistory session ++ [(ficha, turnoActual)]
                     _ -> gsPlayedHistory session
+                -- Actualizar el índice de la primera ficha
+                nuevoIndice = case acc of
+                    Jugar _ Izquierda -> 
+                        if tableroVacio then 0  -- Primera ficha
+                        else gsFirstTileIndex session + 1  -- Se agregó a la izquierda
+                    Jugar _ Derecha ->
+                        if tableroVacio then 0  -- Primera ficha
+                        else gsFirstTileIndex session  -- No cambia
+                    _ -> gsFirstTileIndex session
             in 
             -- En modo NoRobadito, usamos una validación especial para Pasar
             case (acc, gameMode) of
@@ -334,7 +371,7 @@ executeGameAction session action =
                 _ -> case ejecutarAccion acc estado of
                     Exito nuevoEstado -> 
                         let msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
-                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing, gsPlayedHistory = historialActualizado }
+                        in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing, gsPlayedHistory = historialActualizado, gsFirstTileIndex = nuevoIndice }
                     Victoria ganador nuevoEstado ->
                         let tablero = getTablero nuevoEstado
                             wasCapicua = esCapicua tablero
@@ -351,6 +388,7 @@ executeGameAction session action =
                                         , gsWinner = Just (T.pack teamName)
                                         , gsPlayedHistory = historialActualizado
                                         , gsRoundWasCapicua = wasCapicua
+                                        , gsFirstTileIndex = nuevoIndice
                                         }
                                     -- Actualizar Data a 100 si está activo
                                     finalSession = case gsMatchState session of
@@ -363,7 +401,7 @@ executeGameAction session action =
                             _ ->
                                 let msg = T.pack $ "¡Victoria! " ++ playerName ganador ++ " ganó"
                                     winner = T.pack $ playerName ganador
-                                in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner, gsPlayedHistory = historialActualizado }
+                                in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Just winner, gsPlayedHistory = historialActualizado, gsFirstTileIndex = nuevoIndice }
                     Trancado resultado nuevoEstado ->
                         case vsMode of
                             TwoVsTwo ->
@@ -380,7 +418,7 @@ executeGameAction session action =
                                             in (team, losing, "Trancado. Gana " ++ teamName ++ " (menos puntos)", Just $ T.pack teamName)
                                         EmpateEquipos -> 
                                             (NoTeam, NoTeam, "Trancado. ¡Empate entre equipos!", Nothing)
-                                    baseSession = session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner, gsPlayedHistory = historialActualizado }
+                                    baseSession = session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner, gsPlayedHistory = historialActualizado, gsFirstTileIndex = nuevoIndice }
                                     -- Actualizar Data a 100 si está activo (en empate no se suman puntos)
                                     finalSession = case (gsMatchState session, losingTeam) of
                                         (Just _, NoTeam) -> baseSession  -- Empate, no se actualizan puntos
@@ -395,7 +433,7 @@ executeGameAction session action =
                                             ("Trancado. Gana " ++ playerName p ++ " (menos puntos)", Just $ T.pack $ playerName p)
                                         Empate _ -> 
                                             ("Trancado. ¡Empate!", Nothing)
-                                in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner, gsPlayedHistory = historialActualizado }
+                                in session { gsState = nuevoEstado, gsSessionMessage = T.pack msg, gsWinner = winner, gsPlayedHistory = historialActualizado, gsFirstTileIndex = nuevoIndice }
                     ErrorAccion err -> 
                         session { gsSessionMessage = T.pack err }
 
@@ -485,8 +523,9 @@ gameStateToJson session =
             Hard -> "hard"
             Extreme -> "extreme"
         matchStateJson = fmap matchStateToJson (gsMatchState session)
+        firstTileIdx = gsFirstTileIndex session
     in GameResponse
-        { grBoard = boardToJson tablero
+        { grBoard = boardToJson firstTileIdx tablero
         , grPlayers = map playerToJson jugadores
         , grCurrentPlayer = turnoActual
         , grCurrentPlayerName = T.pack $ playerName jugadorAct
@@ -516,12 +555,21 @@ matchStateToJson ms = MatchStateJson
     , msjBonusCapicua = daBonusCapicua (msConfig ms)
     }
 
-boardToJson :: Board -> BoardJson
-boardToJson board = BoardJson
-    { bjTiles = map dominoToJson (fichasEnMesa board)
-    , bjLeftEnd = extremoIzquierdo board
-    , bjRightEnd = extremoDerecho board
-    }
+-- | Convertir Board a BoardJson (usa el índice de la primera ficha para centrar)
+boardToJson :: Int -> Board -> BoardJson
+boardToJson firstTileIdx board = 
+    let positions = reconstruirPosiciones firstTileIdx board
+    in BoardJson
+        { bjTiles = map visualTileToJson positions
+        , bjLeftEnd = extremoIzquierdo board
+        , bjRightEnd = extremoDerecho board
+        }
+
+-- | Convertir VisualTile a TileJson
+visualTileToJson :: VisualTile -> TileJson
+visualTileToJson vt = 
+    let Domino l r = vtDomino vt
+    in TileJson l r (vtX vt) (vtY vt) (vtIsVertical vt)
 
 playerToJson :: Player -> PlayerJson
 playerToJson player = PlayerJson
@@ -539,6 +587,96 @@ teamToText NoTeam = ""
 
 dominoToJson :: Domino -> DominoJson
 dominoToJson (Domino a b) = DominoJson a b
+
+-- =========================================================
+-- Posicionamiento Visual del Tablero
+-- =========================================================
+
+-- Dimensiones de las fichas en píxeles
+tileWidth, tileHeight :: Int
+tileWidth = 100   -- Ancho de ficha horizontal
+tileHeight = 50   -- Alto de ficha horizontal (ancho de vertical)
+
+-- Centro del tablero (punto de referencia) - FIJO, no cambia
+boardCenterX, boardCenterY :: Int
+boardCenterX = 500  -- Centro X del contenedor
+boardCenterY = 140  -- Centro Y del contenedor
+
+-- | Reconstruir todas las posiciones visuales desde el Board
+-- firstTileIdx indica el índice de la primera ficha jugada (la que va en el centro)
+-- Las fichas a su izquierda (índices menores) se extienden hacia la izquierda
+-- Las fichas a su derecha (índices mayores) se extienden hacia la derecha
+reconstruirPosiciones :: Int -> Board -> BoardPositions
+reconstruirPosiciones firstTileIdx board = 
+    let fichas = fichasEnMesa board
+        n = length fichas
+    in case fichas of
+        [] -> []
+        [unica] -> [posicionarEnCentro unica]  -- Una sola ficha: centrada
+        _ -> 
+            -- Usamos el índice de la primera ficha jugada como centro
+            let idx = min firstTileIdx (n - 1)  -- Asegurar que el índice es válido
+                -- Fichas a la izquierda del centro (índices 0 a idx-1)
+                fichasIzq = take idx fichas
+                -- Ficha central (la primera jugada)
+                fichaCentral = fichas !! idx
+                -- Fichas a la derecha del centro (índices idx+1 a n-1)
+                fichasDer = drop (idx + 1) fichas
+                
+                -- Posicionar la ficha central en el centro fijo
+                tileCentral = posicionarEnCentro fichaCentral
+                
+                -- Posicionar fichas a la izquierda (desde el centro hacia afuera)
+                tilesIzq = posicionarHaciaIzquierda (reverse fichasIzq) (vtX tileCentral)
+                
+                -- Posicionar fichas a la derecha (desde el centro hacia afuera)
+                tilesDer = posicionarHaciaDerecha fichasDer (vtX tileCentral + anchoFicha fichaCentral + 3)
+                
+            in reverse tilesIzq ++ [tileCentral] ++ tilesDer
+
+-- | Posicionar una ficha en el centro exacto del tablero
+posicionarEnCentro :: Domino -> VisualTile
+posicionarEnCentro d@(Domino a b) =
+    let isDouble = a == b
+        x = if isDouble 
+            then boardCenterX - (tileHeight `div` 2)
+            else boardCenterX - (tileWidth `div` 2)
+        y = if isDouble
+            then boardCenterY - (tileWidth `div` 2)
+            else boardCenterY - (tileHeight `div` 2)
+    in VisualTile d x y isDouble
+
+-- | Posicionar fichas hacia la izquierda desde una posición X
+-- Recibe las fichas en orden (la más cercana al centro primero)
+posicionarHaciaIzquierda :: [Domino] -> Int -> BoardPositions
+posicionarHaciaIzquierda [] _ = []
+posicionarHaciaIzquierda (d:ds) rightEdgeX =
+    let isDouble = case d of Domino a b -> a == b
+        ancho = anchoFicha d
+        x = rightEdgeX - ancho - 3  -- Gap de 3px
+        y = if isDouble
+            then boardCenterY - (tileWidth `div` 2)
+            else boardCenterY - (tileHeight `div` 2)
+        tile = VisualTile d x y isDouble
+    in tile : posicionarHaciaIzquierda ds x
+
+-- | Posicionar fichas hacia la derecha desde una posición X
+posicionarHaciaDerecha :: [Domino] -> Int -> BoardPositions
+posicionarHaciaDerecha [] _ = []
+posicionarHaciaDerecha (d:ds) currentX =
+    let isDouble = case d of Domino a b -> a == b
+        ancho = anchoFicha d
+        y = if isDouble
+            then boardCenterY - (tileWidth `div` 2)
+            else boardCenterY - (tileHeight `div` 2)
+        tile = VisualTile d currentX y isDouble
+        nextX = currentX + ancho + 3
+    in tile : posicionarHaciaDerecha ds nextX
+
+-- | Calcular el ancho de una ficha según si es doble o no
+anchoFicha :: Domino -> Int
+anchoFicha (Domino a b) = if a == b then tileHeight else tileWidth
+
 -- =========================================================
 -- Data a 100 - Funciones de Puntuación
 -- =========================================================
@@ -646,6 +784,7 @@ startNextRound session = case gsMatchState session of
             , gsWinner = Nothing
             , gsPlayedHistory = []
             , gsRoundWasCapicua = False
+            , gsFirstTileIndex = 0  -- Reiniciar índice para nueva ronda
             }
 
 -- | Finalizar ronda y actualizar puntuación de Data a 100
