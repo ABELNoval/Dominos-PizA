@@ -580,17 +580,17 @@ updateMatchState session losingTeam wasCapicua ms =
         -- Puntos totales de esta ronda
         puntosRonda = (basePoints + bonusNoSalida) * multiplicador * multiplicadorCapicua
         
-        -- Actualizar puntuación
+        -- Actualizar puntuación (el equipo ganador recibe los puntos del perdedor)
         (newScoreA, newScoreB) = case losingTeam of
-            TeamA -> (msTeamAScore ms + puntosRonda, msTeamBScore ms)
-            TeamB -> (msTeamAScore ms, msTeamBScore ms + puntosRonda)
+            TeamA -> (msTeamAScore ms, msTeamBScore ms + puntosRonda)  -- Si A pierde, B suma puntos
+            TeamB -> (msTeamAScore ms + puntosRonda, msTeamBScore ms)  -- Si B pierde, A suma puntos
             NoTeam -> (msTeamAScore ms, msTeamBScore ms)
         
         -- Verificar si alguien llegó a 100
         targetScore = daTargetScore cfg
         matchOver = newScoreA >= targetScore || newScoreB >= targetScore
         matchWinner = if matchOver
-            then if newScoreA >= targetScore then Just TeamB else Just TeamA
+            then if newScoreA >= targetScore then Just TeamA else Just TeamB  -- Quien llega a 100 gana
             else Nothing
         
         -- Actualizar quién ganó la primera ronda
