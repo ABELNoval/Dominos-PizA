@@ -618,7 +618,8 @@ data EstadoPosicion = EstadoPosicion
     { epX :: Int
     , epY :: Int
     , epDireccion :: Direccion
-    , epRotacion :: Int  -- 0 o 180 para fichas horizontales después de doblar
+    , epRotacion :: Int       -- 0 o 180 para fichas horizontales después de doblar
+    , epUltimaEsDoble :: Bool -- Si la última ficha colocada fue un doble
     } deriving (Show)
 
 -- | Reconstruir todas las posiciones visuales desde el Board
@@ -637,6 +638,7 @@ reconstruirPosiciones firstTileIdx board =
                 fichasDer = drop (idx + 1) fichas
                 
                 tileCentral = posicionarEnCentro fichaCentral
+                fichaCentralEsDoble = case fichaCentral of Domino a b -> a == b
                 
                 -- Estado inicial para izquierda (empieza justo a la izquierda del centro)
                 estadoIzqInicial = EstadoPosicion 
@@ -644,6 +646,7 @@ reconstruirPosiciones firstTileIdx board =
                     , epY = boardCenterY
                     , epDireccion = HaciaIzquierda
                     , epRotacion = 0
+                    , epUltimaEsDoble = fichaCentralEsDoble
                     }
                 tilesIzq = posicionarConEsquinas (reverse fichasIzq) estadoIzqInicial True
                 
@@ -653,6 +656,7 @@ reconstruirPosiciones firstTileIdx board =
                     , epY = boardCenterY
                     , epDireccion = HaciaDerecha
                     , epRotacion = 0
+                    , epUltimaEsDoble = fichaCentralEsDoble
                     }
                 tilesDer = posicionarConEsquinas fichasDer estadoDerInicial False
                 
@@ -697,16 +701,20 @@ posicionarConEsquinas (d:ds) estado esIzquierda =
                 let -- Dirección vertical según el lado del tablero
                     haciaArriba = esIzquierda
                     
+                    -- Si la última ficha fue un doble, ocupa más espacio vertical
+                    ultimaEsDoble = epUltimaEsDoble estado
+                    alturaUltima = if ultimaEsDoble then tileWidth else tileHeight
+                    
                     -- Posición X de la ficha vertical
                     cornerX = case epDireccion estado of
                         HaciaIzquierda -> epX estado  -- Borde izquierdo de la última
                         HaciaDerecha   -> epX estado - 3 - tileHeight  -- A la izquierda del borde derecho
                         _              -> epX estado
                     
-                    -- Posición Y de la ficha vertical
+                    -- Posición Y de la ficha vertical (considerando si la última es doble)
                     cornerY = if haciaArriba
-                        then currentY - (tileHeight `div` 2) - tileWidth - 3  -- Arriba
-                        else currentY + (tileHeight `div` 2) + 3               -- Abajo
+                        then currentY - (alturaUltima `div` 2) - tileWidth - 3  -- Arriba
+                        else currentY + (alturaUltima `div` 2) + 3               -- Abajo
                     
                     t = VisualTile d cornerX cornerY True 0
                     
@@ -731,6 +739,7 @@ posicionarConEsquinas (d:ds) estado esIzquierda =
                         , epY = nextY
                         , epDireccion = nuevaDirH
                         , epRotacion = if rotActual == 0 then 180 else 0  -- Alternar rotación cada vez que doblamos
+                        , epUltimaEsDoble = False  -- La ficha vertical no es doble visualmente
                         }
                 in (t, nuevoEst)
             else -- CONTINUAR horizontal
@@ -744,7 +753,7 @@ posicionarConEsquinas (d:ds) estado esIzquierda =
                         HaciaDerecha   -> newX + ancho + 3
                         _              -> newX
                     
-                    nuevoEst = estado { epX = nextX }
+                    nuevoEst = estado { epX = nextX, epUltimaEsDoble = isDouble }
                 in (t, nuevoEst)
     
     in tile : posicionarConEsquinas ds nuevoEstado esIzquierda
