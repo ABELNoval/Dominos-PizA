@@ -64,11 +64,12 @@ data TileJson = TileJson
     , tjX :: Int
     , tjY :: Int
     , tjIsVertical :: Bool
+    , tjRotation :: Int  -- Rotación en grados (0, 90, 180, 270)
     } deriving (Show, Generic)
 
 instance ToJSON TileJson where
-    toJSON (TileJson l r x y v) = object 
-        ["left" .= l, "right" .= r, "x" .= x, "y" .= y, "isVertical" .= v]
+    toJSON (TileJson l r x y v rot) = object 
+        ["left" .= l, "right" .= r, "x" .= x, "y" .= y, "isVertical" .= v, "rotation" .= rot]
 
 data BoardJson = BoardJson
     { bjTiles :: [TileJson]  -- Ahora incluye posiciones
@@ -269,7 +270,8 @@ data VisualTile = VisualTile
     { vtDomino :: Domino
     , vtX :: Int        -- Posición X en píxeles
     , vtY :: Int        -- Posición Y en píxeles  
-    , vtIsVertical :: Bool  -- True si la ficha está vertical (dobles)
+    , vtIsVertical :: Bool  -- True si la ficha está vertical
+    , vtRotation :: Int     -- Rotación en grados (0, 90, 180, 270)
     } deriving (Show, Eq)
 
 -- | Lista de fichas con sus posiciones visuales
@@ -569,7 +571,7 @@ boardToJson firstTileIdx board =
 visualTileToJson :: VisualTile -> TileJson
 visualTileToJson vt = 
     let Domino l r = vtDomino vt
-    in TileJson l r (vtX vt) (vtY vt) (vtIsVertical vt)
+    in TileJson l r (vtX vt) (vtY vt) (vtIsVertical vt) (vtRotation vt)
 
 playerToJson :: Player -> PlayerJson
 playerToJson player = PlayerJson
@@ -599,13 +601,28 @@ tileHeight = 50   -- Alto de ficha horizontal (ancho de vertical)
 
 -- Centro del tablero (punto de referencia) - FIJO, no cambia
 boardCenterX, boardCenterY :: Int
-boardCenterX = 500  -- Centro X del contenedor
-boardCenterY = 140  -- Centro Y del contenedor
+boardCenterX = 550   -- Centro X del contenedor (1100 / 2)
+boardCenterY = 350   -- Centro Y del contenedor (700 / 2)
+
+-- Límites del tablero (para detectar cuando doblar)
+boardMinX, boardMaxX :: Int
+boardMinX = 50       -- Límite izquierdo
+boardMaxX = 1050     -- Límite derecho (1100 - 50)
+
+-- | Dirección de colocación de fichas
+data Direccion = HaciaIzquierda | HaciaDerecha | HaciaAbajo | HaciaArriba
+    deriving (Show, Eq)
+
+-- | Estado de posicionamiento (para rastrear si hemos doblado)
+data EstadoPosicion = EstadoPosicion
+    { epX :: Int
+    , epY :: Int
+    , epDireccion :: Direccion
+    , epRotacion :: Int  -- 0 o 180 para fichas horizontales después de doblar
+    } deriving (Show)
 
 -- | Reconstruir todas las posiciones visuales desde el Board
 -- firstTileIdx indica el índice de la primera ficha jugada (la que va en el centro)
--- Las fichas a su izquierda (índices menores) se extienden hacia la izquierda
--- Las fichas a su derecha (índices mayores) se extienden hacia la derecha
 reconstruirPosiciones :: Int -> Board -> BoardPositions
 reconstruirPosiciones firstTileIdx board = 
     let fichas = fichasEnMesa board
@@ -614,23 +631,30 @@ reconstruirPosiciones firstTileIdx board =
         [] -> []
         [unica] -> [posicionarEnCentro unica]  -- Una sola ficha: centrada
         _ -> 
-            -- Usamos el índice de la primera ficha jugada como centro
-            let idx = min firstTileIdx (n - 1)  -- Asegurar que el índice es válido
-                -- Fichas a la izquierda del centro (índices 0 a idx-1)
+            let idx = min firstTileIdx (n - 1)
                 fichasIzq = take idx fichas
-                -- Ficha central (la primera jugada)
                 fichaCentral = fichas !! idx
-                -- Fichas a la derecha del centro (índices idx+1 a n-1)
                 fichasDer = drop (idx + 1) fichas
                 
-                -- Posicionar la ficha central en el centro fijo
                 tileCentral = posicionarEnCentro fichaCentral
                 
-                -- Posicionar fichas a la izquierda (desde el centro hacia afuera)
-                tilesIzq = posicionarHaciaIzquierda (reverse fichasIzq) (vtX tileCentral)
+                -- Estado inicial para izquierda (empieza justo a la izquierda del centro)
+                estadoIzqInicial = EstadoPosicion 
+                    { epX = vtX tileCentral
+                    , epY = boardCenterY
+                    , epDireccion = HaciaIzquierda
+                    , epRotacion = 0
+                    }
+                tilesIzq = posicionarConEsquinas (reverse fichasIzq) estadoIzqInicial True
                 
-                -- Posicionar fichas a la derecha (desde el centro hacia afuera)
-                tilesDer = posicionarHaciaDerecha fichasDer (vtX tileCentral + anchoFicha fichaCentral + 3)
+                -- Estado inicial para derecha (empieza justo a la derecha del centro)
+                estadoDerInicial = EstadoPosicion 
+                    { epX = vtX tileCentral + anchoFicha fichaCentral + 3
+                    , epY = boardCenterY
+                    , epDireccion = HaciaDerecha
+                    , epRotacion = 0
+                    }
+                tilesDer = posicionarConEsquinas fichasDer estadoDerInicial False
                 
             in reverse tilesIzq ++ [tileCentral] ++ tilesDer
 
@@ -644,34 +668,86 @@ posicionarEnCentro d@(Domino a b) =
         y = if isDouble
             then boardCenterY - (tileWidth `div` 2)
             else boardCenterY - (tileHeight `div` 2)
-    in VisualTile d x y isDouble
+    in VisualTile d x y isDouble 0  -- Rotación 0
 
--- | Posicionar fichas hacia la izquierda desde una posición X
--- Recibe las fichas en orden (la más cercana al centro primero)
-posicionarHaciaIzquierda :: [Domino] -> Int -> BoardPositions
-posicionarHaciaIzquierda [] _ = []
-posicionarHaciaIzquierda (d:ds) rightEdgeX =
-    let isDouble = case d of Domino a b -> a == b
+-- | Posicionar fichas con manejo de esquinas
+-- esIzquierda: True = lado izquierdo del tablero (sube al doblar)
+--              False = lado derecho del tablero (baja al doblar)
+posicionarConEsquinas :: [Domino] -> EstadoPosicion -> Bool -> BoardPositions
+posicionarConEsquinas [] _ _ = []
+posicionarConEsquinas (d:ds) estado esIzquierda =
+    let isDouble = case d of Domino _ _ -> let Domino a b = d in a == b
         ancho = anchoFicha d
-        x = rightEdgeX - ancho - 3  -- Gap de 3px
-        y = if isDouble
-            then boardCenterY - (tileWidth `div` 2)
-            else boardCenterY - (tileHeight `div` 2)
-        tile = VisualTile d x y isDouble
-    in tile : posicionarHaciaIzquierda ds x
-
--- | Posicionar fichas hacia la derecha desde una posición X
-posicionarHaciaDerecha :: [Domino] -> Int -> BoardPositions
-posicionarHaciaDerecha [] _ = []
-posicionarHaciaDerecha (d:ds) currentX =
-    let isDouble = case d of Domino a b -> a == b
-        ancho = anchoFicha d
-        y = if isDouble
-            then boardCenterY - (tileWidth `div` 2)
-            else boardCenterY - (tileHeight `div` 2)
-        tile = VisualTile d currentX y isDouble
-        nextX = currentX + ancho + 3
-    in tile : posicionarHaciaDerecha ds nextX
+        rotActual = epRotacion estado
+        currentY = epY estado
+        
+        -- Determinar si llegamos al límite y necesitamos doblar
+        (necesitaDoblar, newX) = case epDireccion estado of
+            HaciaIzquierda -> 
+                let nx = epX estado - ancho - 3
+                in (nx < boardMinX, nx)
+            HaciaDerecha -> 
+                let nx = epX estado
+                in (nx + ancho > boardMaxX, nx)
+            _ -> (False, epX estado)
+        
+        (tile, nuevoEstado) = 
+            if necesitaDoblar
+            then -- DOBLAR: poner ficha vertical y cambiar dirección
+                let -- Dirección vertical según el lado del tablero
+                    haciaArriba = esIzquierda
+                    
+                    -- Posición X de la ficha vertical
+                    cornerX = case epDireccion estado of
+                        HaciaIzquierda -> epX estado  -- Borde izquierdo de la última
+                        HaciaDerecha   -> epX estado - 3 - tileHeight  -- A la izquierda del borde derecho
+                        _              -> epX estado
+                    
+                    -- Posición Y de la ficha vertical
+                    cornerY = if haciaArriba
+                        then currentY - (tileHeight `div` 2) - tileWidth - 3  -- Arriba
+                        else currentY + (tileHeight `div` 2) + 3               -- Abajo
+                    
+                    t = VisualTile d cornerX cornerY True 0
+                    
+                    -- Nueva dirección horizontal (opuesta a la actual)
+                    nuevaDirH = case epDireccion estado of
+                        HaciaIzquierda -> HaciaDerecha
+                        HaciaDerecha   -> HaciaIzquierda
+                        _              -> HaciaDerecha
+                    
+                    -- Posición para la siguiente ficha (conecta al otro extremo de la vertical)
+                    nextX = case nuevaDirH of
+                        HaciaDerecha   -> cornerX + tileHeight + 3
+                        HaciaIzquierda -> cornerX - 3
+                        _              -> cornerX
+                    
+                    nextY = if haciaArriba
+                        then cornerY + (tileHeight `div` 2)                     -- Centro de la fila superior
+                        else cornerY + tileWidth - (tileHeight `div` 2)         -- Centro de la fila inferior
+                    
+                    nuevoEst = estado 
+                        { epX = nextX
+                        , epY = nextY
+                        , epDireccion = nuevaDirH
+                        , epRotacion = if rotActual == 0 then 180 else 0  -- Alternar rotación cada vez que doblamos
+                        }
+                in (t, nuevoEst)
+            else -- CONTINUAR horizontal
+                let y = if isDouble
+                        then currentY - (tileWidth `div` 2)
+                        else currentY - (tileHeight `div` 2)
+                    t = VisualTile d newX y isDouble rotActual
+                    
+                    nextX = case epDireccion estado of
+                        HaciaIzquierda -> newX
+                        HaciaDerecha   -> newX + ancho + 3
+                        _              -> newX
+                    
+                    nuevoEst = estado { epX = nextX }
+                in (t, nuevoEst)
+    
+    in tile : posicionarConEsquinas ds nuevoEstado esIzquierda
 
 -- | Calcular el ancho de una ficha según si es doble o no
 anchoFicha :: Domino -> Int
