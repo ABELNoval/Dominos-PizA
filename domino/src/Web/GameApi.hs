@@ -87,6 +87,7 @@ data GameResponse = GameResponse
     , grMessage :: T.Text
     , grGameOver :: Bool
     , grWinner :: Maybe T.Text
+    , grWinDetails :: Maybe T.Text  -- Detalles del resultado (puntos, tipo de victoria)
     , grPozoCount :: Int
     , grCanDraw :: Bool
     , grGameMode :: T.Text
@@ -347,6 +348,8 @@ executeGameAction session action =
         gameMode = gsGameMode session
         vsMode = gsVsMode session
         turnoActual = gsTurnoActual estado
+        jugadorQueJuega = jugadorActual estado
+        nombreJugador = playerName jugadorQueJuega
         accion = parseAction action gameMode
         tableroAntes = getTablero estado
         tableroVacio = null (fichasEnMesa tableroAntes)
@@ -366,13 +369,20 @@ executeGameAction session action =
                         if tableroVacio then 0  -- Primera ficha
                         else gsFirstTileIndex session  -- No cambia
                     _ -> gsFirstTileIndex session
+                -- Generar mensaje descriptivo de la acción
+                accionMsg = case acc of
+                    Jugar (Domino a b) lado -> 
+                        let ladoStr = if lado == Izquierda then "izquierda" else "derecha"
+                        in nombreJugador ++ " jugó [" ++ show a ++ "|" ++ show b ++ "] por la " ++ ladoStr
+                    Pasar -> nombreJugador ++ " pasó"
+                    Robar -> nombreJugador ++ " robó una ficha"
             in 
             -- En modo NoRobadito, usamos una validación especial para Pasar
             case (acc, gameMode) of
                 (Pasar, NoRobadito) -> ejecutarPasarNoRobadito session estado
                 _ -> case ejecutarAccion acc estado of
                     Exito nuevoEstado -> 
-                        let msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
+                        let msg = T.pack $ accionMsg ++ ". Turno de " ++ playerName (jugadorActual nuevoEstado)
                         in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing, gsPlayedHistory = historialActualizado, gsFirstTileIndex = nuevoIndice }
                     Victoria ganador nuevoEstado ->
                         let tablero = getTablero nuevoEstado
@@ -449,6 +459,7 @@ teamToString NoTeam = "Sin equipo"
 ejecutarPasarNoRobadito :: GameSession -> GameState -> GameSession
 ejecutarPasarNoRobadito session gs =
     let jugador = jugadorActual gs
+        nombreJugador = playerName jugador
         tablero = getTablero gs
         vsMode = gsVsMode session
     in if puedeJugar (playerHand jugador) tablero
@@ -485,7 +496,7 @@ ejecutarPasarNoRobadito session gs =
                     in session { gsState = gsFinal, gsSessionMessage = T.pack msg, gsWinner = winner }
                   else 
                     let nuevoEstado = siguienteTurno gs1
-                        msg = T.pack $ "Turno de " ++ playerName (jugadorActual nuevoEstado)
+                        msg = T.pack $ nombreJugador ++ " pasó. Turno de " ++ playerName (jugadorActual nuevoEstado)
                     in session { gsState = nuevoEstado, gsSessionMessage = msg, gsWinner = Nothing }
 
 -- | Parsear acción del JSON (considera el modo de juego)
@@ -526,6 +537,10 @@ gameStateToJson session =
             Extreme -> "extreme"
         matchStateJson = fmap matchStateToJson (gsMatchState session)
         firstTileIdx = gsFirstTileIndex session
+        -- Calcular detalles del resultado si el juego terminó
+        winDetails = if terminado
+            then Just $ calcularDetallesResultado jugadores (gsWinner session)
+            else Nothing
     in GameResponse
         { grBoard = boardToJson firstTileIdx tablero
         , grPlayers = map playerToJson jugadores
@@ -534,6 +549,7 @@ gameStateToJson session =
         , grMessage = gsSessionMessage session
         , grGameOver = terminado
         , grWinner = gsWinner session
+        , grWinDetails = winDetails
         , grPozoCount = length pozo
         , grCanDraw = canDrawBasedOnMode
         , grGameMode = gameModeText
@@ -541,6 +557,17 @@ gameStateToJson session =
         , grDifficulty = difficultyText
         , grMatchState = matchStateJson
         }
+
+-- | Calcular detalles del resultado para mostrar al usuario
+calcularDetallesResultado :: [Player] -> Maybe T.Text -> T.Text
+calcularDetallesResultado jugadores ganador =
+    let puntosJugadores = [(playerName p, calcularPuntosMano p) | p <- jugadores]
+        -- Verificar si alguien se pegó (tiene 0 fichas)
+        jugadorPegado = [playerName p | p <- jugadores, null (playerHand p)]
+        puntosTexto = T.intercalate ", " [T.pack $ n ++ ": " ++ show pts ++ " pts" | (n, pts) <- puntosJugadores]
+    in case jugadorPegado of
+        (nombre:_) -> T.pack $ "🎉 ¡" ++ nombre ++ " se pegó!\\n" ++ T.unpack puntosTexto
+        [] -> T.pack $ "🔒 Juego trancado\\n" ++ T.unpack puntosTexto
 
 -- | Convertir MatchState a JSON
 matchStateToJson :: MatchState -> MatchStateJson
