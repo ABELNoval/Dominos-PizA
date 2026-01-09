@@ -1,0 +1,95 @@
+name:                domino
+version:             0.1.0.0
+
+extra-source-files:
+- CHANGELOG.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/domino#readme>
+
+dependencies:
+  - base >= 4.7 && < 5
+  - gloss
+  - random
+  - random-shuffle
+  - mtl
+  - vector
+  - pretty
+  - containers
+  # Web dependencies
+  - scotty
+  - aeson
+  - text
+  - wai
+  - wai-middleware-static
+  - stm
+  - blaze-html
+  - http-types
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wmissing-export-lists
+- -Wmissing-home-modules
+- -Wpartial-fields
+- -Wredundant-constraints
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Lib
+    
+    # Game logic
+    - Game.Domino
+    - Game.Board
+    - Game.Player
+    - Game.Rules
+    - Game.GameState
+    - Game.Actions
+    - Game.AI
+
+    # AI modules
+    - AI.Easy
+    - AI.Medium
+    - AI.Hard
+    - AI.Hard2v2
+    - AI.Extreme
+
+    # Web
+    - Web.Server
+    - Web.GameApi
+    - Web.Views
+
+executables:
+  domino-exe:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+    - domino
+    - gloss
+    - random
+    - random-shuffle
+    - mtl
+    - vector
+    - pretty
+
+tests:
+  domino-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - domino
+

@@ -1,0 +1,11 @@
+resolver: nightly-2025-02-05
+compiler: ghc-9.10.3
+
+packages:
+- .
+
+system-ghc: false
+install-ghc: true
+
+arch: x86_64
+local-bin-path: .stack-bin
